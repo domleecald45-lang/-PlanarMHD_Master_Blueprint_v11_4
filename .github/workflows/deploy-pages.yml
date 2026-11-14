@@ -51,7 +51,6 @@ jobs:
 
           src = "\n".join(cleaned) + "\n"
 
-          # Fix outer triple-quote delimiters on files containing """ docstrings
           for key in ['FILES["hil/hil_verify_v11_3.py"]', 'FILES["audit/formal_grammar_pipeline.py"]']:
               idx = src.find(key)
               if idx != -1:
@@ -63,7 +62,6 @@ jobs:
                   if start_q != -1 and end_q != -1 and end_q > start_q:
                       src = src[:start_q] + "= '''" + src[start_q + 5:end_q] + "'''" + src[end_q + 3:]
 
-          # Fix dunder underscores if flattened during copy-paste
           for dunder in ["init", "enter", "exit", "name"]:
               src = re.sub(rf"(?<!_)__{dunder}__(?!_)", f"__{dunder}__", src)
               src = re.sub(rf"\bdef {dunder}\(", f"def __{dunder}__(", src)
@@ -78,14 +76,12 @@ jobs:
           python3 - << 'EOF'
           import re
 
-          # Repair Makefile line-wraps, missing $ prefixes, and tab indentation
           mk = open("PlanarMHD_Master_Blueprint_v11_4/Makefile").read()
           mk = re.sub(r"H\s+I\s+L\s+S\s+C\s+R\s+I\s+P\s+T", "HIL_SCRIPT", mk)
           mk = re.sub(r"(?<!\$)\(([A-Z_]+)\)", r"$(\1)", mk)
           mk = re.sub(r"\n\s+([a-z@\$])", r"\n\t\1", mk)
           open("PlanarMHD_Master_Blueprint_v11_4/Makefile", "w").write(mk)
 
-          # Restore single-element bracket slices if stripped during copy-paste
           hil = open("PlanarMHD_Master_Blueprint_v11_4/hil/hil_verify_v11_3.py").read()
           for a, b in [
               ("fn_code = pdu\n", "fn_code = pdu[0]\n"),
