@@ -161,6 +161,7 @@ jobs:
 
           rtl = open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v").read()
           for a, b in [
+              ("DEADTIME_CYCLES = 5", "DEADTIME_CYCLES = 4"),
               ("sync_pfb11 | (~sync_tlv) | sync_sf6", "sync_pfb11[1] | (~sync_tlv[1]) | sync_sf6[1]"),
               ("{sync_pfb11, pfb11_analog_in}", "{sync_pfb11[0], pfb11_analog_in}"),
               ("{sync_tlv, tlv3502_wire_or}", "{sync_tlv[0], tlv3502_wire_or}"),
@@ -168,6 +169,10 @@ jobs:
           ]:
               rtl = rtl.replace(a, b)
           open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v", "w").write(rtl)
+
+          tb = open("PlanarMHD_Master_Blueprint_v11_4/rtl/tb_digital_warden_pfb11.v").read()
+          tb = tb.replace(".DEADTIME_CYCLES(5)", ".DEADTIME_CYCLES(4)")
+          open("PlanarMHD_Master_Blueprint_v11_4/rtl/tb_digital_warden_pfb11.v", "w").write(tb)
           EOF
 
           cd PlanarMHD_Master_Blueprint_v11_4
