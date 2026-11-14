@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: \${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -50,6 +50,26 @@ jobs:
                   break
 
           src = "\n".join(cleaned) + "\n"
+
+          # Fix outer triple-quote delimiters on files containing """ docstrings
+          for key in ['FILES["hil/hil_verify_v11_3.py"]', 'FILES["audit/formal_grammar_pipeline.py"]']:
+              idx = src.find(key)
+              if idx != -1:
+                  start_q = src.find('= """', idx)
+                  next_section = src.find("# ---", idx + 10)
+                  if next_section == -1:
+                      next_section = src.find("def build_archive", idx + 10)
+                  end_q = src.rfind('"""', idx, next_section)
+                  if start_q != -1 and end_q != -1 and end_q > start_q:
+                      src = src[:start_q] + "= '''" + src[start_q + 5:end_q] + "'''" + src[end_q + 3:]
+
+          # Fix dunder underscores if flattened during copy-paste
+          for dunder in ["init", "enter", "exit", "name"]:
+              src = re.sub(rf"(?<!_)__{dunder}__(?!_)", f"__{dunder}__", src)
+              src = re.sub(rf"\bdef {dunder}\(", f"def __{dunder}__(", src)
+          src = src.replace('if name == "main":', 'if __name__ == "__main__":')
+          src = src.replace('if __name__ == "main":', 'if __name__ == "__main__":')
+
           open("build_project_v11_4.py", "w").write(src)
           EOF
 
@@ -68,29 +88,29 @@ jobs:
           # Restore single-element bracket slices if stripped during copy-paste
           hil = open("PlanarMHD_Master_Blueprint_v11_4/hil/hil_verify_v11_3.py").read()
           for a, b in [
-              ("fn_code = pdu\n", "fn_code = pdu\n"),
-              ("nom_regs =[:count]", "nom_regs =[:count]"),
-              ("fn_code = body\n", "fn_code = body\n"),
-              ("exc_code = body if", "exc_code = body if"),
-              ("byte_count = body\n", "byte_count = body\n"),
-              ("if body & 0x80:", "if body & 0x80:"),
-              ("sf6_bar_abs = regs / 1000.0", "sf6_bar_abs = regs / 1000.0"),
-              ("core_temp_c = regs / 100.0", "core_temp_c = regs / 100.0"),
-              ("rotor_rpm = regs\n", "rotor_rpm = regs\n"),
+              ("fn_code = pdu\n", "fn_code = pdu[0]\n"),
+              ("nom_regs =[:count]", "nom_regs = [2500, 5500, 20372, 0][:count]"),
+              ("fn_code = body\n", "fn_code = body[0]\n"),
+              ("exc_code = body if", "exc_code = body[1] if"),
+              ("byte_count = body\n", "byte_count = body[1]\n"),
+              ("if body & 0x80:", "if body[0] & 0x80:"),
+              ("sf6_bar_abs = regs / 1000.0", "sf6_bar_abs = regs[0] / 1000.0"),
+              ("core_temp_c = regs / 100.0", "core_temp_c = regs[1] / 100.0"),
+              ("rotor_rpm = regs\n", "rotor_rpm = regs[2]\n"),
           ]:
               hil = hil.replace(a, b)
           open("PlanarMHD_Master_Blueprint_v11_4/hil/hil_verify_v11_3.py", "w").write(hil)
 
           sim = open("PlanarMHD_Master_Blueprint_v11_4/hil/sim_g01_firm_verify.py").read()
-          sim = sim.replace("wave_targets =\n", "wave_targets =\n")
+          sim = sim.replace("wave_targets =\n", "wave_targets = [288, 1200, 4200, 6000]\n")
           open("PlanarMHD_Master_Blueprint_v11_4/hil/sim_g01_firm_verify.py", "w").write(sim)
 
           rtl = open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v").read()
           for a, b in [
-              ("sync_pfb11 | (~sync_tlv) | sync_sf6", "sync_pfb11 | (~sync_tlv) | sync_sf6"),
-              ("{sync_pfb11, pfb11_analog_in}", "{sync_pfb11, pfb11_analog_in}"),
-              ("{sync_tlv, tlv3502_wire_or}", "{sync_tlv, tlv3502_wire_or}"),
-              ("{sync_sf6, sf6_low_in}", "{sync_sf6, sf6_low_in}"),
+              ("sync_pfb11 | (~sync_tlv) | sync_sf6", "sync_pfb11[1] | (~sync_tlv[1]) | sync_sf6[1]"),
+              ("{sync_pfb11, pfb11_analog_in}", "{sync_pfb11[0], pfb11_analog_in}"),
+              ("{sync_tlv, tlv3502_wire_or}", "{sync_tlv[0], tlv3502_wire_or}"),
+              ("{sync_sf6, sf6_low_in}", "{sync_sf6[0], sf6_low_in}"),
           ]:
               rtl = rtl.replace(a, b)
           open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v", "w").write(rtl)
