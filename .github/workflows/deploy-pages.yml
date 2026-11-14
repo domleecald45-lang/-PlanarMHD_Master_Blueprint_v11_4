@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 - << 'EOF'
           import re
+          import textwrap
 
           lines = open("build_project_v11_4.py").read().splitlines()
           cleaned = []
@@ -40,14 +41,14 @@ jobs:
                       in_code = True
                   else:
                       continue
+              if s.startswith("def build_archive"):
+                  break
               if s.startswith("Use code with caution") or s.startswith("```"):
                   continue
               if s.startswith("---") or re.match(r"^\d+\.\s+[A-Z]", s) or s.startswith(("Replace with your exact", "Mirror root GitHub")):
                   cleaned.append("# " + line)
               else:
                   cleaned.append(line)
-              if s == "build_archive()":
-                  break
 
           src = "\n".join(cleaned) + "\n"
 
@@ -57,16 +58,38 @@ jobs:
                   start_q = src.find('= """', idx)
                   next_section = src.find("# ---", idx + 10)
                   if next_section == -1:
-                      next_section = src.find("def build_archive", idx + 10)
+                      next_section = len(src)
                   end_q = src.rfind('"""', idx, next_section)
                   if start_q != -1 and end_q != -1 and end_q > start_q:
                       src = src[:start_q] + "= '''" + src[start_q + 5:end_q] + "'''" + src[end_q + 3:]
 
-          for dunder in ["init", "enter", "exit", "name"]:
-              src = re.sub(rf"(?<!_)__{dunder}__(?!_)", f"__{dunder}__", src)
-              src = re.sub(rf"\bdef {dunder}\(", f"def __{dunder}__(", src)
-          src = src.replace('if name == "main":', 'if __name__ == "__main__":')
-          src = src.replace('if __name__ == "main":', 'if __name__ == "__main__":')
+          src += textwrap.dedent('''
+          def build_archive():
+              for rel_path, content in FILES.items():
+                  full_path = os.path.join(PROJECT_DIR, rel_path)
+                  os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                  with open(full_path, "w", encoding="utf-8") as f:
+                      f.write(content)
+
+              for rel_path in ["README.md", ".github/workflows/verify.yml", ".github/workflows/deploy-pages.yml"]:
+                  src_f = os.path.join(PROJECT_DIR, rel_path)
+                  if os.path.exists(src_f):
+                      dst_dir = os.path.dirname(rel_path)
+                      if dst_dir:
+                          os.makedirs(dst_dir, exist_ok=True)
+                      shutil.copy2(src_f, rel_path)
+
+              with zipfile.ZipFile(ZIP_NAME, "w", zipfile.ZIP_DEFLATED) as zf:
+                  for rel_path in sorted(FILES):
+                      full_path = os.path.join(PROJECT_DIR, rel_path)
+                      zf.write(full_path, arcname=os.path.join(PROJECT_DIR, rel_path))
+
+              print(f"Created '{PROJECT_DIR}/' and '{ZIP_NAME}' with {len(FILES)} files.")
+
+
+          if __name__ == "__main__":
+              build_archive()
+          ''')
 
           open("build_project_v11_4.py", "w").write(src)
           EOF
@@ -84,29 +107,29 @@ jobs:
 
           hil = open("PlanarMHD_Master_Blueprint_v11_4/hil/hil_verify_v11_3.py").read()
           for a, b in [
-              ("fn_code = pdu\n", "fn_code = pdu[0]\n"),
-              ("nom_regs =[:count]", "nom_regs = [2500, 5500, 20372, 0][:count]"),
-              ("fn_code = body\n", "fn_code = body[0]\n"),
-              ("exc_code = body if", "exc_code = body[1] if"),
-              ("byte_count = body\n", "byte_count = body[1]\n"),
-              ("if body & 0x80:", "if body[0] & 0x80:"),
-              ("sf6_bar_abs = regs / 1000.0", "sf6_bar_abs = regs[0] / 1000.0"),
-              ("core_temp_c = regs / 100.0", "core_temp_c = regs[1] / 100.0"),
-              ("rotor_rpm = regs\n", "rotor_rpm = regs[2]\n"),
+              ("fn_code = pdu\n", "fn_code = pdu\n"),
+              ("nom_regs =[:count]", "nom_regs =[:count]"),
+              ("fn_code = body\n", "fn_code = body\n"),
+              ("exc_code = body if", "exc_code = body if"),
+              ("byte_count = body\n", "byte_count = body\n"),
+              ("if body & 0x80:", "if body & 0x80:"),
+              ("sf6_bar_abs = regs / 1000.0", "sf6_bar_abs = regs / 1000.0"),
+              ("core_temp_c = regs / 100.0", "core_temp_c = regs / 100.0"),
+              ("rotor_rpm = regs\n", "rotor_rpm = regs\n"),
           ]:
               hil = hil.replace(a, b)
           open("PlanarMHD_Master_Blueprint_v11_4/hil/hil_verify_v11_3.py", "w").write(hil)
 
           sim = open("PlanarMHD_Master_Blueprint_v11_4/hil/sim_g01_firm_verify.py").read()
-          sim = sim.replace("wave_targets =\n", "wave_targets = [288, 1200, 4200, 6000]\n")
+          sim = sim.replace("wave_targets =\n", "wave_targets =\n")
           open("PlanarMHD_Master_Blueprint_v11_4/hil/sim_g01_firm_verify.py", "w").write(sim)
 
           rtl = open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v").read()
           for a, b in [
-              ("sync_pfb11 | (~sync_tlv) | sync_sf6", "sync_pfb11[1] | (~sync_tlv[1]) | sync_sf6[1]"),
-              ("{sync_pfb11, pfb11_analog_in}", "{sync_pfb11[0], pfb11_analog_in}"),
-              ("{sync_tlv, tlv3502_wire_or}", "{sync_tlv[0], tlv3502_wire_or}"),
-              ("{sync_sf6, sf6_low_in}", "{sync_sf6[0], sf6_low_in}"),
+              ("sync_pfb11 | (~sync_tlv) | sync_sf6", "sync_pfb11 | (~sync_tlv) | sync_sf6"),
+              ("{sync_pfb11, pfb11_analog_in}", "{sync_pfb11, pfb11_analog_in}"),
+              ("{sync_tlv, tlv3502_wire_or}", "{sync_tlv, tlv3502_wire_or}"),
+              ("{sync_sf6, sf6_low_in}", "{sync_sf6, sf6_low_in}"),
           ]:
               rtl = rtl.replace(a, b)
           open("PlanarMHD_Master_Blueprint_v11_4/rtl/digital_warden_pfb11.v", "w").write(rtl)
