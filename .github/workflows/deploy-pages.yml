@@ -1,1 +1,44 @@
+name: Build and Deploy Planar-MHD v11.4
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iverilog ghdl texlive-latex-base texlive-latex-extra texlive-science texlive-fonts-recommended
+      - name: Build and Verify
+        run: |
+          python3 build_project_v11_4.py
+          cd PlanarMHD_Master_Blueprint_v11_4
+          make sim sim-physics audit pdf
+      - name: Stage Pages
+        run: |
+          mkdir -p ./public
+          cp PlanarMHD_Master_Blueprint_v11_4/build/PlanarMHD_Master_Blueprint_v11_4.pdf ./public/index.pdf
+          cp PlanarMHD_Master_Blueprint_v11_4.zip ./public/
+          printf '<html><body style="font-family:sans-serif;background:#0f172a;color:#fff;padding:40px"><h1>Planar-MHD Master Blueprint v11.4</h1><p><a style="color:#38bdf8" href="./index.pdf">View Compiled PDF</a> | <a style="color:#38bdf8" href="./PlanarMHD_Master_Blueprint_v11_4.zip">Download ZIP</a></p></body></html>\n' > ./public/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+      - id: deployment
+        uses: actions/deploy-pages@v4
 
